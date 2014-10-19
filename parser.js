@@ -43,16 +43,19 @@ Parser.prototype = {
         line = line.trim();
         if (!line) return;
         if (line.match(patterns.title)) {
+          //check the previous line, possibly revert and update
           var previous = tree.current.getLastChild();
           if (previous.type == "paragraph") {
             tree.current.children.pop();
             tree.enterNode("title").write(previous.contents).exitNode();
           }
         } else if (line.match(patterns.bullet)) {
+          //enter the bullet state with a new parse stack
           this.state = "bullets";
           tree.enterNode("bullet-list");
-          this.lineNumber--;
+          return true;
         } else {
+          //add a new paragraph node
           tree.enterNode("paragraph");
           this.parseInlines(line, tree);
           tree.exitNode();
@@ -61,22 +64,22 @@ Parser.prototype = {
 
       case "bullets":
         if (line.match(patterns.bullet)) {
+
           //does this match the current indentation?
           var indent = line.match(/^\s*/)[0].length;
           //if it's deeper, it should be a sublist
           if (indent > this.indentation) {
             this.pushStacks("bullets", indent);
             tree.enterNode("bullet-list");
-            this.lineNumber--;
-            return;
+            return true;
           } else if (indent < this.indentation) {
             //if it's a higher indent, jump out
             tree.exitNode();
             this.popStacks();
-            this.lineNumber--;
-            return;
+            return true;
           }
-          //should pull and parse as many continuation lines as possible for this item
+
+          //pull and parse as many continuation lines as possible for this item
           tree.enterNode("list-item");
           this.parseInlines(line.replace(patterns.bullet, ""), tree);
           var prefix = line.match(patterns.bullet)[0];
@@ -88,13 +91,14 @@ Parser.prototype = {
             nextLine = this.lines[this.lineNumber+1];
           }
           tree.exitNode();
+          
         } else if (!line.trim()) {
           //skip blank lines
         } else {
           //hit a non-bullet line, let's backtrack
           tree.exitNode();
           this.popStacks();
-          this.lineNumber--;
+          return true;
         }
       break;
 
@@ -122,8 +126,10 @@ Parser.prototype = {
     var lines = this.lines = doc.split("\n");
     while (this.lineNumber < lines.length) {
       var line = lines[this.lineNumber];
-      this.parseLine(line);
-      this.lineNumber++;
+      //parseLine returns true if it needs to retry
+      if (!this.parseLine(line)) {
+        this.lineNumber++;
+      }
     }
     this.tree.log();
   }
