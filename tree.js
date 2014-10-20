@@ -24,7 +24,10 @@ Tree.prototype = {
     this.current = node;
     return this;
   },
-  exitNode: function() {
+  exitNode: function(closest) {
+    if (closest) while (this.current.type != closest) {
+      this.current = this.current.parent;
+    }
     this.current = this.current.parent;
     return this;
   },
@@ -41,7 +44,7 @@ Tree.prototype = {
   },
   log: function() {
     var walk = function(node, depth) {
-      var padding = (new Array(depth + 1)).join(" ")
+      var padding = depth ? (new Array(depth + 1)).join("  ") : "";
       console.log(padding, node.type, node.contents);
       for (var i = 0; i < node.children.length; i++) {
         walk(node.children[i], depth + 1);

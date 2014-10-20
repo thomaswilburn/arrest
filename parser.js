@@ -26,8 +26,8 @@ Parser.prototype = {
     var state = Object.create(this.state);
     state.mode = mode;
     if (typeof indent !== undefined) state.indentation = indent;
-    this.state = state;
     this.stateStack.push(this.state);
+    this.state = state;
   },
   popState: function() {
     this.state = this.stateStack.pop() || { mode: "blank", indentation: 0 };
@@ -73,7 +73,7 @@ Parser.prototype = {
 
       case "bullets":
         if (line.match(patterns.bullet)) {
-
+          
           //does this match the current indentation?
           var indent = this.getIndentation(line);
           //if it's deeper, it should be a sublist
@@ -83,11 +83,14 @@ Parser.prototype = {
             return true;
           } else if (indent < this.state.indentation) {
             //if it's a higher indent, jump out
-            tree.exitNode();
+            tree.exitNode("bullet-list");
             this.popState();
             return true;
           }
-
+          
+          //we exit a list item only when we encounter the next one
+          if (tree.current.type == "list-item") tree.exitNode();
+          
           //pull and parse as many continuation lines as possible for this item
           tree.enterNode("list-item");
           this.parseInlines(line.replace(patterns.bullet, ""), tree);
@@ -99,11 +102,13 @@ Parser.prototype = {
             this.parseInlines(nextLine.replace(continues, ""), tree);
             nextLine = this.lines[this.lineNumber+1];
           }
-          tree.exitNode();
+          //tree.exitNode();
         } else if (!line.trim()) {
           //skip blank lines
         } else {
-          //hit a non-bullet line, let's backtrack
+          //hit a non-bullet line, let's leave our list
+          tree.exitNode("bullet-list");
+          console.log(tree.current);
           this.popState();
           return true;
         }
