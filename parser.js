@@ -10,35 +10,44 @@ var patterns = {
 var Parser = function() {
   this.lines = [];
   this.tree = new Tree();
-  this.state = "blank";
+  this.state = {
+    mode: "blank",
+    indentation: 0
+  };
   this.stateStack = []; //stack of nested states
   this.refs = {};
   this.titles = [];
   this.directives = {}; //require("./directives")
   this.lineNumber = 0;
-  this.indentation = 0;
-  this.indentStack = []; //stack of nested indentation levels
 };
 
 Parser.prototype = {
-  pushStacks: function(state, indent) {
-    this.stateStack.push(this.state);
+  pushState: function(mode, indent) {
+    var state = Object.create(this.state);
+    state.mode = mode;
+    if (typeof indent !== undefined) state.indentation = indent;
     this.state = state;
-    if (indent) {
-      this.indentStack.push(this.indentation);
-      this.indentation = indent;
-    }
+    this.stateStack.push(this.state);
   },
-  popStacks: function() {
-    this.state = this.stateStack.pop() || "blank";
-    this.indentation = this.indentStack.pop() || 0;
+  popState: function() {
+    this.state = this.stateStack.pop() || { mode: "blank", indentation: 0 };
+  },
+  getIndentation: function(line) {
+    var match = line.match(/^\s+\S/);
+    if (!match) return 0;
+    return match[0].length;
   },
   parseInlines: function(line, tree) {
+    //check for entering a code block
+    if (line.match(/::$/)) {
+      line = line.replace(/([^\s])::$/, "$1:");
+      this.pushState("literal");
+    }
     tree.enterNode("text").write(line).exitNode();
   },
   parseLine: function(line) {
     var tree = this.tree;
-    switch (this.state) {
+    switch (this.state.mode) {
       case "blank":
         line = line.trim();
         if (!line) return;
@@ -51,7 +60,7 @@ Parser.prototype = {
           }
         } else if (line.match(patterns.bullet)) {
           //enter the bullet state with a new parse stack
-          this.state = "bullets";
+          this.pushState("bullets", this.getIndentation(line));
           tree.enterNode("bullet-list");
           return true;
         } else {
@@ -66,16 +75,16 @@ Parser.prototype = {
         if (line.match(patterns.bullet)) {
 
           //does this match the current indentation?
-          var indent = line.match(/^\s*/)[0].length;
+          var indent = this.getIndentation(line);
           //if it's deeper, it should be a sublist
-          if (indent > this.indentation) {
-            this.pushStacks("bullets", indent);
+          if (indent > this.state.indentation) {
             tree.enterNode("bullet-list");
+            this.pushState("bullets", indent);
             return true;
-          } else if (indent < this.indentation) {
+          } else if (indent < this.state.indentation) {
             //if it's a higher indent, jump out
             tree.exitNode();
-            this.popStacks();
+            this.popState();
             return true;
           }
 
@@ -91,13 +100,11 @@ Parser.prototype = {
             nextLine = this.lines[this.lineNumber+1];
           }
           tree.exitNode();
-          
         } else if (!line.trim()) {
           //skip blank lines
         } else {
           //hit a non-bullet line, let's backtrack
-          tree.exitNode();
-          this.popStacks();
+          this.popState();
           return true;
         }
       break;
@@ -107,7 +114,11 @@ Parser.prototype = {
       break;
 
       case "literal":
-
+        if (line.match(/^[^\s]+/)) {
+          this.popState();
+          return true;
+        }
+        tree.enterNode("literal").write(line).exitNode();
       break;
 
       case "quote":
@@ -119,7 +130,7 @@ Parser.prototype = {
       break;
 
       default:
-        throw "Parser ended up in unknown state: " + this.state;
+        throw "Parser ended up in unknown state: " + this.state.mode;
     }
   },
   parse: function(doc) {

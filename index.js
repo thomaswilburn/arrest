@@ -7,4 +7,10 @@ var parser = new Parser();
 
 var testDoc = fs.readFileSync("document.rst", { encoding: "utf8" });
 
-parser.parse(testDoc);
+try {
+  parser.parse(testDoc);
+} catch (err) {
+  console.log(err);
+  parser.tree.log();
+  console.log(parser.lineNumber, parser.state);
+}
