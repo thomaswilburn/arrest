@@ -41,6 +41,7 @@ Tree.prototype = {
     }
     var children = this.current.children;
     children.push.apply(children, nodes);
+    return this;
   },
   log: function() {
     var walk = function(node, depth) {

@@ -56,7 +56,7 @@ Parser.prototype = {
           var previous = tree.current.getLastChild();
           if (previous.type == "paragraph") {
             tree.current.children.pop();
-            tree.enterNode("title").write(previous.contents).exitNode();
+            tree.enterNode("title").write(previous.contents).append(previous.children).exitNode();
           }
         } else if (line.match(patterns.bullet)) {
           //enter the bullet state with a new parse stack
@@ -108,7 +108,6 @@ Parser.prototype = {
         } else {
           //hit a non-bullet line, let's leave our list
           tree.exitNode("bullet-list");
-          console.log(tree.current);
           this.popState();
           return true;
         }
@@ -148,6 +147,7 @@ Parser.prototype = {
       }
     }
     this.tree.log();
+    return this.tree;
   }
 };
 
